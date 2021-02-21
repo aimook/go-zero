@@ -23,8 +23,10 @@ import (
 )
 
 const (
+	//DebugLevel logs for develop
+	DebugLevel = iota
 	// InfoLevel logs everything
-	InfoLevel = iota
+	InfoLevel
 	// ErrorLevel includes errors, slows, stacks
 	ErrorLevel
 	// SevereLevel only log severe messages
@@ -34,6 +36,7 @@ const (
 const (
 	timeFormat = "2006-01-02T15:04:05.000Z07"
 
+	debugFilename  = "debug.log"
 	accessFilename = "access.log"
 	errorFilename  = "error.log"
 	severeFilename = "severe.log"
@@ -44,6 +47,7 @@ const (
 	volumeMode  = "volume"
 
 	levelAlert  = "alert"
+	levelDebug  = "debug"
 	levelInfo   = "info"
 	levelError  = "error"
 	levelSevere = "severe"
@@ -66,6 +70,7 @@ var (
 
 	writeConsole bool
 	logLevel     uint32
+	debugLog     io.WriteCloser
 	infoLog      io.WriteCloser
 	errorLog     io.WriteCloser
 	severeLog    io.WriteCloser
@@ -99,6 +104,8 @@ type (
 	Logger interface {
 		Error(...interface{})
 		Errorf(string, ...interface{})
+		Debug(...interface{})
+		Debugf(string, ...interface{})
 		Info(...interface{})
 		Infof(string, ...interface{})
 		Slow(...interface{})
@@ -183,6 +190,7 @@ func Disable() {
 	once.Do(func() {
 		atomic.StoreUint32(&initialized, 1)
 
+		debugLog = iox.NopCloser(ioutil.Discard)
 		infoLog = iox.NopCloser(ioutil.Discard)
 		errorLog = iox.NopCloser(ioutil.Discard)
 		severeLog = iox.NopCloser(ioutil.Discard)
@@ -222,6 +230,16 @@ func ErrorStack(v ...interface{}) {
 func ErrorStackf(format string, v ...interface{}) {
 	// there is newline in stack string
 	stackSync(fmt.Sprintf(format, v...))
+}
+
+// Info writes v into debug log.
+func Debug(v ...interface{}) {
+	debugSync(fmt.Sprint(v...))
+}
+
+// Infof writes v with format into debug log.
+func Debugf(format string, v ...interface{}) {
+	debugSync(fmt.Sprintf(format, v...))
 }
 
 // Info writes v into access log.
@@ -359,9 +377,15 @@ func handleOptions(opts []LogOption) {
 	}
 }
 
+func debugSync(msg string) {
+	if shouldLog(DebugLevel) {
+		output(debugLog, levelInfo, msg)
+	}
+}
+
 func infoSync(msg string) {
-	if shouldLog(InfoLevel) {
-		output(infoLog, levelInfo, msg)
+	if shouldLog(DebugLevel) {
+		output(debugLog, levelInfo, msg)
 	}
 }
 
@@ -391,6 +415,8 @@ func outputJson(writer io.Writer, info interface{}) {
 
 func setupLogLevel(c LogConf) {
 	switch c.Level {
+	case levelDebug:
+		SetLevel(DebugLevel)
 	case levelInfo:
 		SetLevel(InfoLevel)
 	case levelError:
@@ -406,6 +432,7 @@ func setupWithConsole(c LogConf) {
 		writeConsole = true
 		setupLogLevel(c)
 
+		debugLog = newLogWriter(log.New(os.Stdout, "", flags))
 		infoLog = newLogWriter(log.New(os.Stdout, "", flags))
 		errorLog = newLogWriter(log.New(os.Stderr, "", flags))
 		severeLog = newLogWriter(log.New(os.Stderr, "", flags))
@@ -431,6 +458,7 @@ func setupWithFiles(c LogConf) error {
 		opts = append(opts, WithKeepDays(c.KeepDays))
 	}
 
+	debugFile := path.Join(c.Path, debugFilename)
 	accessFile := path.Join(c.Path, accessFilename)
 	errorFile := path.Join(c.Path, errorFilename)
 	severeFile := path.Join(c.Path, severeFilename)
@@ -441,6 +469,10 @@ func setupWithFiles(c LogConf) error {
 		atomic.StoreUint32(&initialized, 1)
 		handleOptions(opts)
 		setupLogLevel(c)
+
+		if debugLog, err = createOutput(debugFile); err != nil {
+			return
+		}
 
 		if infoLog, err = createOutput(accessFile); err != nil {
 			return

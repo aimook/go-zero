@@ -31,6 +31,18 @@ func (l *durationLogger) Errorf(format string, v ...interface{}) {
 	}
 }
 
+func (l *durationLogger) Debug(v ...interface{}) {
+	if shouldLog(InfoLevel) {
+		l.write(infoLog, levelInfo, fmt.Sprint(v...))
+	}
+}
+
+func (l *durationLogger) Debugf(format string, v ...interface{}) {
+	if shouldLog(InfoLevel) {
+		l.write(infoLog, levelInfo, fmt.Sprintf(format, v...))
+	}
+}
+
 func (l *durationLogger) Info(v ...interface{}) {
 	if shouldLog(InfoLevel) {
 		l.write(infoLog, levelInfo, fmt.Sprint(v...))

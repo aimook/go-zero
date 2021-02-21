@@ -29,6 +29,18 @@ func (l *traceLogger) Errorf(format string, v ...interface{}) {
 	}
 }
 
+func (l *traceLogger) Debug(v ...interface{}) {
+	if shouldLog(DebugLevel) {
+		l.write(debugLog, levelInfo, fmt.Sprint(v...))
+	}
+}
+
+func (l *traceLogger) Debugf(format string, v ...interface{}) {
+	if shouldLog(DebugLevel) {
+		l.write(debugLog, levelInfo, fmt.Sprintf(format, v...))
+	}
+}
+
 func (l *traceLogger) Info(v ...interface{}) {
 	if shouldLog(InfoLevel) {
 		l.write(infoLog, levelInfo, fmt.Sprint(v...))
