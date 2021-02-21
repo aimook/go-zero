@@ -26,14 +26,19 @@ var (
 
 // Parse parses the request.
 func Parse(r *http.Request, v interface{}) error {
-	if err := ParsePath(r, v); err != nil {
-		return err
+	ct := r.Header.Get("Content-Type")
+	switch ct {
+	case "application/json":
+		return ParseJsonBody(r, v)
+	case "application/x-www-form-urlencoded", "multipart/form-data":
+		if err := ParseForm(r, v); err != nil {
+			return err
+		}
+	default:
+		if err := ParsePath(r, v); err != nil {
+			return err
+		}
 	}
-
-	if err := ParseForm(r, v); err != nil {
-		return err
-	}
-
 	return ParseJsonBody(r, v)
 }
 
