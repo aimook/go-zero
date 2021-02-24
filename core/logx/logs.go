@@ -379,13 +379,13 @@ func handleOptions(opts []LogOption) {
 
 func debugSync(msg string) {
 	if shouldLog(DebugLevel) {
-		output(debugLog, levelInfo, msg)
+		output(debugLog, levelDebug, msg)
 	}
 }
 
 func infoSync(msg string) {
 	if shouldLog(DebugLevel) {
-		output(debugLog, levelInfo, msg)
+		output(debugLog, levelDebug, msg)
 	}
 }
 
