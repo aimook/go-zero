@@ -32,11 +32,13 @@ func main() {
 
 	var c config.Config
 	conf.MustLoad(*configFile, &c)
-	ctx := svc.NewServiceContext(c)
-	srv := server.New{{.serviceNew}}Server(ctx)
 
+	//init application context
+	app.InitApplicationContext(c)
+
+	rpcService := server.New{{.serviceNew}}Server()
 	rpcServer := zrpc.MustNewServer(c.RpcServerConf, func(grpcServer *grpc.Server) {
-		{{.pkg}}.Register{{.service}}Server(grpcServer, srv)
+		{{.pkg}}.Register{{.service}}Server(grpcServer, rpcService)
 	})
 	defer rpcServer.Stop()
 

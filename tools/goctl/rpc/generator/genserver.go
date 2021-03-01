@@ -24,14 +24,10 @@ import (
 	{{.imports}}
 )
 
-type {{.server}}Server struct {
-	svcCtx *svc.ServiceContext
-}
+type {{.server}}Server struct {}
 
-func New{{.server}}Server(svcCtx *svc.ServiceContext) *{{.server}}Server {
-	return &{{.server}}Server{
-		svcCtx: svcCtx,
-	}
+func New{{.server}}Server() *{{.server}}Server {
+	return &{{.server}}Server{}
 }
 
 {{.funcs}}
@@ -39,7 +35,7 @@ func New{{.server}}Server(svcCtx *svc.ServiceContext) *{{.server}}Server {
 	functionTemplate = `
 {{if .hasComment}}{{.comment}}{{end}}
 func (s *{{.server}}Server) {{.method}} (ctx context.Context, in {{.request}}) ({{.response}}, error) {
-	l := logic.New{{.logicName}}(ctx,s.svcCtx)
+	l := logic.New{{.logicName}}(ctx)
 	return l.{{.method}}(in)
 }
 `

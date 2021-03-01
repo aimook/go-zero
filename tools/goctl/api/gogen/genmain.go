@@ -28,14 +28,16 @@ func main() {
 	var c config.Config
 	conf.MustLoad(*configFile, &c)
 
-	ctx := svc.NewServiceContext(c)
-	server := rest.MustNewServer(c.RestConf)
-	defer server.Stop()
+	//init application context
+	app.InitApplicationContext(c)
+	
+	apiServer := rest.MustNewServer(c.RestConf)
+	defer apiServer.Stop()
 
-	handler.RegisterHandlers(server, ctx)
+	handler.RegisterHandlers(apiServer)
 
-	fmt.Printf("Starting server at %s:%d...\n", c.Host, c.Port)
-	server.Start()
+	fmt.Printf("Starting api server at %s:%d...\n", c.Host, c.Port)
+	apiServer.Start()
 }
 `
 
