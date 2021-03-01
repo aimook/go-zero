@@ -35,13 +35,13 @@ func main() {
 	ctx := svc.NewServiceContext(c)
 	srv := server.New{{.serviceNew}}Server(ctx)
 
-	s := zrpc.MustNewServer(c.RpcServerConf, func(grpcServer *grpc.Server) {
+	rpcServer := zrpc.MustNewServer(c.RpcServerConf, func(grpcServer *grpc.Server) {
 		{{.pkg}}.Register{{.service}}Server(grpcServer, srv)
 	})
-	defer s.Stop()
+	defer rpcServer.Stop()
 
 	fmt.Printf("Starting rpc server at %s...\n", c.ListenOn)
-	s.Start()
+	rpcServer.Start()
 }
 `
 
@@ -52,7 +52,7 @@ func (g *DefaultGenerator) GenMain(ctx DirContext, proto parser.Proto, cfg *conf
 		return err
 	}
 
-	fileName := filepath.Join(ctx.GetMain().Filename, fmt.Sprintf("%v.go", mainFilename))
+	fileName := filepath.Join(ctx.GetMain().Filename, fmt.Sprintf("%v_main.go", mainFilename))
 	imports := make([]string, 0)
 	pbImport := fmt.Sprintf(`"%v"`, ctx.GetPb().Package)
 	svcImport := fmt.Sprintf(`"%v"`, ctx.GetSvc().Package)
