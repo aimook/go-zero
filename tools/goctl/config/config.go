@@ -7,7 +7,7 @@ import (
 
 const (
 	// DefaultFormat defines a default naming style
-	DefaultFormat = "gozero"
+	DefaultFormat = "go_zero"
 )
 
 // Config defines the file naming style

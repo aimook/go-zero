@@ -15,7 +15,7 @@ import (
 )
 
 var cfg = &conf.Config{
-	NamingFormat: "gozero",
+	NamingFormat: "go_zero",
 }
 
 func TestRpcGenerate(t *testing.T) {
