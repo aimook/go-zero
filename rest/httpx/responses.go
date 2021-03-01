@@ -14,20 +14,36 @@ var (
 )
 
 // Error writes err into w.
+const (
+	ResponseWrapMessageKey = "message"
+	ResponseWrapCodeKey    = "code"
+	ResponseWrapDataKey    = "data"
+	ResponseWrapSuccessKey = "success"
+)
+
 func Error(w http.ResponseWriter, err error) {
 	lock.RLock()
 	handler := errorHandler
 	lock.RUnlock()
 
 	if handler == nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		WriteJson(w, http.StatusOK, map[string]interface{}{
+			ResponseWrapCodeKey:    http.StatusBadRequest,
+			ResponseWrapMessageKey: "error handler is null",
+			ResponseWrapSuccessKey: false,
+		})
 		return
 	}
 
 	code, body := errorHandler(err)
 	e, ok := body.(error)
 	if ok {
-		http.Error(w, e.Error(), code)
+		WriteJson(w, http.StatusOK, map[string]interface{}{
+			ResponseWrapMessageKey: e.Error(),
+			ResponseWrapCodeKey:    code,
+			ResponseWrapSuccessKey: false,
+		})
+		//http.Error(w, e.Error(), code)
 	} else {
 		WriteJson(w, code, body)
 	}
@@ -40,7 +56,12 @@ func Ok(w http.ResponseWriter) {
 
 // OkJson writes v into w with 200 OK.
 func OkJson(w http.ResponseWriter, v interface{}) {
-	WriteJson(w, http.StatusOK, v)
+	WriteJson(w, http.StatusOK, map[string]interface{}{
+		ResponseWrapMessageKey: "success",
+		ResponseWrapCodeKey:    10000,
+		ResponseWrapDataKey:    v,
+		ResponseWrapSuccessKey: true,
+	})
 }
 
 // SetErrorHandler sets the error handler, which is called on calling Error.
