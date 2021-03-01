@@ -21,14 +21,12 @@ import (
 type {{.logic}} struct {
 	logx.Logger
 	ctx    context.Context
-	svcCtx *svc.ServiceContext
 }
 
-func New{{.logic}}(ctx context.Context, svcCtx *svc.ServiceContext) {{.logic}} {
+func New{{.logic}}(ctx context.Context) {{.logic}} {
 	return {{.logic}}{
 		Logger: logx.WithContext(ctx),
-		ctx:    ctx,
-		svcCtx: svcCtx,
+		ctx:    ctx
 	}
 }
 

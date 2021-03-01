@@ -13,19 +13,21 @@ import (
 
 const (
 	contextFilename = "service_context"
-	contextTemplate = `package ctx
+	contextTemplate = `package svc
 
 import (
 	{{.configImport}}
 )
 
-type ServiceContext struct {
+var Context *context
+
+type context struct {
 	Config {{.config}}
 	{{.middleware}}
 }
 
-func NewServiceContext(c {{.config}}) *ServiceContext {
-	return &ServiceContext{
+func InitApplicationContext(c {{.config}}) {
+	Context = &context{
 		Config: c, 
 		{{.middlewareAssignment}}
 	}

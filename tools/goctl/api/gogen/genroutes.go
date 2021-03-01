@@ -27,7 +27,7 @@ import (
 	{{.importPackages}}
 )
 
-func RegisterHandlers(engine *rest.Server, serverCtx *svc.ServiceContext) {
+func RegisterHandlers(engine *rest.Server) {
 	{{.routesAdditions}}
 }
 `

@@ -4,7 +4,7 @@ const (
 	interval      = "internal/"
 	typesPacket   = "types"
 	configDir     = interval + "config"
-	contextDir    = interval + "svc"
+	contextDir    = interval + "app"
 	handlerDir    = interval + "handler"
 	logicDir      = interval + "logic"
 	middlewareDir = interval + "middleware"
