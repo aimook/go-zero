@@ -73,7 +73,7 @@ func (g *DefaultGenerator) GenCall(ctx DirContext, proto parser.Proto, cfg *conf
 		return err
 	}
 
-	filename := filepath.Join(dir.Filename, fmt.Sprintf("%s.go", callFilename))
+	filename := filepath.Join(dir.Filename, fmt.Sprintf("rpc_%s_client.go", callFilename))
 	functions, err := g.genFunction(proto.PbPackage, service)
 	if err != nil {
 		return err

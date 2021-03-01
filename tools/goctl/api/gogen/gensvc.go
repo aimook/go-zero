@@ -13,7 +13,7 @@ import (
 
 const (
 	contextFilename = "service_context"
-	contextTemplate = `package svc
+	contextTemplate = `package ctx
 
 import (
 	{{.configImport}}

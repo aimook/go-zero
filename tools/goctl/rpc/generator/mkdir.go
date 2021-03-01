@@ -17,7 +17,7 @@ const (
 	config   = "config"
 	logic    = "logic"
 	server   = "server"
-	svc      = "svc"
+	svc      = "ctx"
 	pb       = "pb"
 	call     = "call"
 )
@@ -56,10 +56,10 @@ func mkdir(ctx *ctx.ProjectContext, proto parser.Proto) (DirContext, error) {
 	internalDir := filepath.Join(ctx.WorkDir, "internal")
 	configDir := filepath.Join(internalDir, "config")
 	logicDir := filepath.Join(internalDir, "logic")
-	serverDir := filepath.Join(internalDir, "server")
-	svcDir := filepath.Join(internalDir, "svc")
-	pbDir := filepath.Join(ctx.WorkDir, proto.GoPackage)
-	callDir := filepath.Join(ctx.WorkDir, strings.ToLower(stringx.From(proto.Service.Name).ToCamel()))
+	serverDir := filepath.Join(internalDir, "rpc", "server")
+	svcDir := filepath.Join(internalDir, "ctx")
+	pbDir := filepath.Join(internalDir, "rpc")
+	callDir := filepath.Join(internalDir, "rpc", "client")
 	if strings.ToLower(proto.Service.Name) == strings.ToLower(proto.GoPackage) {
 		callDir = filepath.Join(ctx.WorkDir, strings.ToLower(stringx.From(proto.Service.Name+"_client").ToCamel()))
 	}

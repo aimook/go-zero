@@ -10,7 +10,7 @@ import (
 	"github.com/tal-tech/go-zero/tools/goctl/util/format"
 )
 
-const svcTemplate = `package svc
+const svcTemplate = `package ctx
 
 import {{.imports}}
 
@@ -29,7 +29,7 @@ func NewServiceContext(c config.Config) *ServiceContext {
 // such as rpc dependency, model dependency, etc.
 func (g *DefaultGenerator) GenSvc(ctx DirContext, _ parser.Proto, cfg *conf.Config) error {
 	dir := ctx.GetSvc()
-	svcFilename, err := format.FileNamingFormat(cfg.NamingFormat, "service_context")
+	svcFilename, err := format.FileNamingFormat(cfg.NamingFormat, "svc_context")
 	if err != nil {
 		return err
 	}
@@ -40,7 +40,7 @@ func (g *DefaultGenerator) GenSvc(ctx DirContext, _ parser.Proto, cfg *conf.Conf
 		return err
 	}
 
-	return util.With("svc").GoFmt(true).Parse(text).SaveTo(map[string]interface{}{
+	return util.With("ctx").GoFmt(true).Parse(text).SaveTo(map[string]interface{}{
 		"imports": fmt.Sprintf(`"%v"`, ctx.GetConfig().Package),
 	}, fileName, false)
 }
