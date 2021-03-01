@@ -6,6 +6,9 @@ build:
 mac:
 	GOOS=darwin go build -ldflags="-s -w" -ldflags="-X 'main.BuildTime=$(version)'" -o goctl-darwin goctl.go
 	$(if $(shell command -v upx), upx goctl-darwin)
+	cp goctl-darwin ${GOBIN}/goctl
+	chmod +x ${GOBIN}/goctl
+	rm -f ./goctl-darwin
 win:
 	GOOS=windows go build -ldflags="-s -w" -ldflags="-X 'main.BuildTime=$(version)'" -o goctl.exe goctl.go
 	$(if $(shell command -v upx), upx goctl.exe)
