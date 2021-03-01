@@ -14,9 +14,10 @@ var (
 type (
 	// A RedisConf is a redis config.
 	RedisConf struct {
-		Host string
-		Type string `json:",default=node,options=node|cluster"`
-		Pass string `json:",optional"`
+		Host   string
+		Type   string `json:",default=node,options=node|cluster"`
+		Pass   string `json:",optional"`
+		Prefix string `json:",optional"`
 	}
 
 	// A RedisKeyConf is a redis config with key.

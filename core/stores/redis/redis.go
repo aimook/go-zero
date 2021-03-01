@@ -78,10 +78,11 @@ func NewRedis(redisAddr, redisType, prefix string, redisPass ...string) *Redis {
 	}
 
 	return &Redis{
-		Addr: redisAddr,
-		Type: redisType,
-		Pass: pass,
-		brk:  breaker.NewBreaker(),
+		Addr:   redisAddr,
+		Type:   redisType,
+		Pass:   pass,
+		Prefix: prefix,
+		brk:    breaker.NewBreaker(),
 	}
 }
 
