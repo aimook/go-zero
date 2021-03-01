@@ -1,6 +1,6 @@
 module github.com/tal-tech/go-zero
 
-go 1.14
+go 1.15
 
 require (
 	github.com/ClickHouse/clickhouse-go v1.4.3
@@ -32,6 +32,7 @@ require (
 	github.com/logrusorgru/aurora v2.0.3+incompatible
 	github.com/mattn/go-colorable v0.1.6 // indirect
 	github.com/mattn/go-runewidth v0.0.9 // indirect
+	github.com/minio/minio-go/v7 v7.0.10 // indirect
 	github.com/olekukonko/tablewriter v0.0.4
 	github.com/onsi/ginkgo v1.7.0 // indirect
 	github.com/onsi/gomega v1.5.0 // indirect
