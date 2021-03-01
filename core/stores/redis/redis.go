@@ -37,10 +37,11 @@ type (
 
 	// Redis defines a redis node/cluster. It is thread-safe.
 	Redis struct {
-		Addr string
-		Type string
-		Pass string
-		brk  breaker.Breaker
+		Addr   string
+		Type   string
+		Pass   string
+		Prefix string
+		brk    breaker.Breaker
 	}
 
 	// RedisNode interface represents a redis node.
@@ -70,7 +71,7 @@ type (
 )
 
 // NewRedis returns a Redis.
-func NewRedis(redisAddr, redisType string, redisPass ...string) *Redis {
+func NewRedis(redisAddr, redisType, prefix string, redisPass ...string) *Redis {
 	var pass string
 	for _, v := range redisPass {
 		pass = v
@@ -84,6 +85,13 @@ func NewRedis(redisAddr, redisType string, redisPass ...string) *Redis {
 	}
 }
 
+func getKey(prefix, key string) string {
+	if "" != prefix {
+		return prefix + ":" + key
+	}
+	return key
+}
+
 // BitCount is redis bitcount command implementation.
 func (s *Redis) BitCount(key string, start, end int64) (val int64, err error) {
 	err = s.brk.DoWithAcceptable(func() error {
@@ -92,7 +100,7 @@ func (s *Redis) BitCount(key string, start, end int64) (val int64, err error) {
 			return err
 		}
 
-		val, err = conn.BitCount(key, &red.BitCount{
+		val, err = conn.BitCount(getKey(s.Prefix, key), &red.BitCount{
 			Start: start,
 			End:   end,
 		}).Result()
@@ -109,8 +117,10 @@ func (s *Redis) BitOpAnd(destKey string, keys ...string) (val int64, err error) 
 		if err != nil {
 			return err
 		}
-
-		val, err = conn.BitOpAnd(destKey, keys...).Result()
+		for idx, k := range keys {
+			keys[idx] = getKey(s.Prefix, k)
+		}
+		val, err = conn.BitOpAnd(getKey(s.Prefix, destKey), keys...).Result()
 		return err
 	}, acceptable)
 
@@ -125,7 +135,7 @@ func (s *Redis) BitOpNot(destKey, key string) (val int64, err error) {
 			return err
 		}
 
-		val, err = conn.BitOpNot(destKey, key).Result()
+		val, err = conn.BitOpNot(getKey(s.Prefix, destKey), getKey(s.Prefix, key)).Result()
 		return err
 	}, acceptable)
 
@@ -139,8 +149,10 @@ func (s *Redis) BitOpOr(destKey string, keys ...string) (val int64, err error) {
 		if err != nil {
 			return err
 		}
-
-		val, err = conn.BitOpOr(destKey, keys...).Result()
+		for idx, k := range keys {
+			keys[idx] = getKey(s.Prefix, k)
+		}
+		val, err = conn.BitOpOr(getKey(s.Prefix, destKey), keys...).Result()
 		return err
 	}, acceptable)
 
@@ -154,8 +166,10 @@ func (s *Redis) BitOpXor(destKey string, keys ...string) (val int64, err error) 
 		if err != nil {
 			return err
 		}
-
-		val, err = conn.BitOpXor(destKey, keys...).Result()
+		for idx, k := range keys {
+			keys[idx] = getKey(s.Prefix, k)
+		}
+		val, err = conn.BitOpXor(getKey(s.Prefix, destKey), keys...).Result()
 		return err
 	}, acceptable)
 
@@ -170,7 +184,7 @@ func (s *Redis) BitPos(key string, bit int64, start, end int64) (val int64, err 
 			return err
 		}
 
-		val, err = conn.BitPos(key, bit, start, end).Result()
+		val, err = conn.BitPos(getKey(s.Prefix, key), bit, start, end).Result()
 		return err
 	}, acceptable)
 
@@ -184,7 +198,7 @@ func (s *Redis) Blpop(redisNode RedisNode, key string) (string, error) {
 		return "", ErrNilNode
 	}
 
-	vals, err := redisNode.BLPop(blockingQueryTimeout, key).Result()
+	vals, err := redisNode.BLPop(blockingQueryTimeout, getKey(s.Prefix, key)).Result()
 	if err != nil {
 		return "", err
 	}
@@ -203,7 +217,7 @@ func (s *Redis) BlpopEx(redisNode RedisNode, key string) (string, bool, error) {
 		return "", false, ErrNilNode
 	}
 
-	vals, err := redisNode.BLPop(blockingQueryTimeout, key).Result()
+	vals, err := redisNode.BLPop(blockingQueryTimeout, getKey(s.Prefix, key)).Result()
 	if err != nil {
 		return "", false, err
 	}
@@ -223,6 +237,9 @@ func (s *Redis) Del(keys ...string) (val int, err error) {
 			return err
 		}
 
+		for idx, k := range keys {
+			keys[idx] = getKey(s.Prefix, k)
+		}
 		v, err := conn.Del(keys...).Result()
 		if err != nil {
 			return err
@@ -242,7 +259,9 @@ func (s *Redis) Eval(script string, keys []string, args ...interface{}) (val int
 		if err != nil {
 			return err
 		}
-
+		for idx, k := range keys {
+			keys[idx] = getKey(s.Prefix, k)
+		}
 		val, err = conn.Eval(script, keys, args...).Result()
 		return err
 	}, acceptable)
@@ -258,7 +277,7 @@ func (s *Redis) Exists(key string) (val bool, err error) {
 			return err
 		}
 
-		v, err := conn.Exists(key).Result()
+		v, err := conn.Exists(getKey(s.Prefix, key)).Result()
 		if err != nil {
 			return err
 		}
@@ -278,7 +297,7 @@ func (s *Redis) Expire(key string, seconds int) error {
 			return err
 		}
 
-		return conn.Expire(key, time.Duration(seconds)*time.Second).Err()
+		return conn.Expire(getKey(s.Prefix, key), time.Duration(seconds)*time.Second).Err()
 	}, acceptable)
 }
 
@@ -290,7 +309,7 @@ func (s *Redis) Expireat(key string, expireTime int64) error {
 			return err
 		}
 
-		return conn.ExpireAt(key, time.Unix(expireTime, 0)).Err()
+		return conn.ExpireAt(getKey(s.Prefix, key), time.Unix(expireTime, 0)).Err()
 	}, acceptable)
 }
 
@@ -302,7 +321,7 @@ func (s *Redis) GeoAdd(key string, geoLocation ...*GeoLocation) (val int64, err 
 			return err
 		}
 
-		v, err := conn.GeoAdd(key, geoLocation...).Result()
+		v, err := conn.GeoAdd(getKey(s.Prefix, key), geoLocation...).Result()
 		if err != nil {
 			return err
 		}
@@ -321,7 +340,7 @@ func (s *Redis) GeoDist(key string, member1, member2, unit string) (val float64,
 			return err
 		}
 
-		v, err := conn.GeoDist(key, member1, member2, unit).Result()
+		v, err := conn.GeoDist(getKey(s.Prefix, key), member1, member2, unit).Result()
 		if err != nil {
 			return err
 		}
@@ -340,7 +359,7 @@ func (s *Redis) GeoHash(key string, members ...string) (val []string, err error)
 			return err
 		}
 
-		v, err := conn.GeoHash(key, members...).Result()
+		v, err := conn.GeoHash(getKey(s.Prefix, key), members...).Result()
 		if err != nil {
 			return err
 		}
@@ -359,7 +378,7 @@ func (s *Redis) GeoRadius(key string, longitude, latitude float64, query *GeoRad
 			return err
 		}
 
-		v, err := conn.GeoRadius(key, longitude, latitude, query).Result()
+		v, err := conn.GeoRadius(getKey(s.Prefix, key), longitude, latitude, query).Result()
 		if err != nil {
 			return err
 		}
@@ -378,7 +397,7 @@ func (s *Redis) GeoRadiusByMember(key, member string, query *GeoRadiusQuery) (va
 			return err
 		}
 
-		v, err := conn.GeoRadiusByMember(key, member, query).Result()
+		v, err := conn.GeoRadiusByMember(getKey(s.Prefix, key), member, query).Result()
 		if err != nil {
 			return err
 		}
@@ -397,7 +416,7 @@ func (s *Redis) GeoPos(key string, members ...string) (val []*GeoPos, err error)
 			return err
 		}
 
-		v, err := conn.GeoPos(key, members...).Result()
+		v, err := conn.GeoPos(getKey(s.Prefix, key), members...).Result()
 		if err != nil {
 			return err
 		}
@@ -416,7 +435,7 @@ func (s *Redis) Get(key string) (val string, err error) {
 			return err
 		}
 
-		if val, err = conn.Get(key).Result(); err == red.Nil {
+		if val, err = conn.Get(getKey(s.Prefix, key)).Result(); err == red.Nil {
 			return nil
 		} else if err != nil {
 			return err
@@ -436,7 +455,7 @@ func (s *Redis) GetBit(key string, offset int64) (val int, err error) {
 			return err
 		}
 
-		v, err := conn.GetBit(key, offset).Result()
+		v, err := conn.GetBit(getKey(s.Prefix, key), offset).Result()
 		if err != nil {
 			return err
 		}
@@ -456,7 +475,7 @@ func (s *Redis) Hdel(key, field string) (val bool, err error) {
 			return err
 		}
 
-		v, err := conn.HDel(key, field).Result()
+		v, err := conn.HDel(getKey(s.Prefix, key), field).Result()
 		if err != nil {
 			return err
 		}
@@ -476,7 +495,7 @@ func (s *Redis) Hexists(key, field string) (val bool, err error) {
 			return err
 		}
 
-		val, err = conn.HExists(key, field).Result()
+		val, err = conn.HExists(getKey(s.Prefix, key), field).Result()
 		return err
 	}, acceptable)
 
@@ -491,7 +510,7 @@ func (s *Redis) Hget(key, field string) (val string, err error) {
 			return err
 		}
 
-		val, err = conn.HGet(key, field).Result()
+		val, err = conn.HGet(getKey(s.Prefix, key), field).Result()
 		return err
 	}, acceptable)
 
@@ -506,7 +525,7 @@ func (s *Redis) Hgetall(key string) (val map[string]string, err error) {
 			return err
 		}
 
-		val, err = conn.HGetAll(key).Result()
+		val, err = conn.HGetAll(getKey(s.Prefix, key)).Result()
 		return err
 	}, acceptable)
 
@@ -521,7 +540,7 @@ func (s *Redis) Hincrby(key, field string, increment int) (val int, err error) {
 			return err
 		}
 
-		v, err := conn.HIncrBy(key, field, int64(increment)).Result()
+		v, err := conn.HIncrBy(getKey(s.Prefix, key), field, int64(increment)).Result()
 		if err != nil {
 			return err
 		}
@@ -541,7 +560,7 @@ func (s *Redis) Hkeys(key string) (val []string, err error) {
 			return err
 		}
 
-		val, err = conn.HKeys(key).Result()
+		val, err = conn.HKeys(getKey(s.Prefix, key)).Result()
 		return err
 	}, acceptable)
 
@@ -556,7 +575,7 @@ func (s *Redis) Hlen(key string) (val int, err error) {
 			return err
 		}
 
-		v, err := conn.HLen(key).Result()
+		v, err := conn.HLen(getKey(s.Prefix, key)).Result()
 		if err != nil {
 			return err
 		}
@@ -576,7 +595,7 @@ func (s *Redis) Hmget(key string, fields ...string) (val []string, err error) {
 			return err
 		}
 
-		v, err := conn.HMGet(key, fields...).Result()
+		v, err := conn.HMGet(getKey(s.Prefix, key), fields...).Result()
 		if err != nil {
 			return err
 		}
@@ -596,7 +615,7 @@ func (s *Redis) Hset(key, field, value string) error {
 			return err
 		}
 
-		return conn.HSet(key, field, value).Err()
+		return conn.HSet(getKey(s.Prefix, key), field, value).Err()
 	}, acceptable)
 }
 
@@ -608,7 +627,7 @@ func (s *Redis) Hsetnx(key, field, value string) (val bool, err error) {
 			return err
 		}
 
-		val, err = conn.HSetNX(key, field, value).Result()
+		val, err = conn.HSetNX(getKey(s.Prefix, key), field, value).Result()
 		return err
 	}, acceptable)
 
@@ -628,7 +647,7 @@ func (s *Redis) Hmset(key string, fieldsAndValues map[string]string) error {
 			vals[k] = v
 		}
 
-		return conn.HMSet(key, vals).Err()
+		return conn.HMSet(getKey(s.Prefix, key), vals).Err()
 	}, acceptable)
 }
 
@@ -640,7 +659,7 @@ func (s *Redis) Hscan(key string, cursor uint64, match string, count int64) (key
 			return err
 		}
 
-		keys, cur, err = conn.HScan(key, cursor, match, count).Result()
+		keys, cur, err = conn.HScan(getKey(s.Prefix, key), cursor, match, count).Result()
 		return err
 	}, acceptable)
 
@@ -655,7 +674,7 @@ func (s *Redis) Hvals(key string) (val []string, err error) {
 			return err
 		}
 
-		val, err = conn.HVals(key).Result()
+		val, err = conn.HVals(getKey(s.Prefix, key)).Result()
 		return err
 	}, acceptable)
 
@@ -670,7 +689,7 @@ func (s *Redis) Incr(key string) (val int64, err error) {
 			return err
 		}
 
-		val, err = conn.Incr(key).Result()
+		val, err = conn.Incr(getKey(s.Prefix, key)).Result()
 		return err
 	}, acceptable)
 
@@ -685,7 +704,7 @@ func (s *Redis) Incrby(key string, increment int64) (val int64, err error) {
 			return err
 		}
 
-		val, err = conn.IncrBy(key, int64(increment)).Result()
+		val, err = conn.IncrBy(getKey(s.Prefix, key), int64(increment)).Result()
 		return err
 	}, acceptable)
 
@@ -715,7 +734,7 @@ func (s *Redis) Llen(key string) (val int, err error) {
 			return err
 		}
 
-		v, err := conn.LLen(key).Result()
+		v, err := conn.LLen(getKey(s.Prefix, key)).Result()
 		if err != nil {
 			return err
 		}
@@ -735,7 +754,7 @@ func (s *Redis) Lpop(key string) (val string, err error) {
 			return err
 		}
 
-		val, err = conn.LPop(key).Result()
+		val, err = conn.LPop(getKey(s.Prefix, key)).Result()
 		return err
 	}, acceptable)
 
@@ -750,7 +769,7 @@ func (s *Redis) Lpush(key string, values ...interface{}) (val int, err error) {
 			return err
 		}
 
-		v, err := conn.LPush(key, values...).Result()
+		v, err := conn.LPush(getKey(s.Prefix, key), values...).Result()
 		if err != nil {
 			return err
 		}
@@ -770,7 +789,7 @@ func (s *Redis) Lrange(key string, start int, stop int) (val []string, err error
 			return err
 		}
 
-		val, err = conn.LRange(key, int64(start), int64(stop)).Result()
+		val, err = conn.LRange(getKey(s.Prefix, key), int64(start), int64(stop)).Result()
 		return err
 	}, acceptable)
 
@@ -785,7 +804,7 @@ func (s *Redis) Lrem(key string, count int, value string) (val int, err error) {
 			return err
 		}
 
-		v, err := conn.LRem(key, int64(count), value).Result()
+		v, err := conn.LRem(getKey(s.Prefix, key), int64(count), value).Result()
 		if err != nil {
 			return err
 		}
@@ -804,7 +823,9 @@ func (s *Redis) Mget(keys ...string) (val []string, err error) {
 		if err != nil {
 			return err
 		}
-
+		for idx, k := range keys {
+			keys[idx] = getKey(s.Prefix, k)
+		}
 		v, err := conn.MGet(keys...).Result()
 		if err != nil {
 			return err
@@ -825,7 +846,7 @@ func (s *Redis) Persist(key string) (val bool, err error) {
 			return err
 		}
 
-		val, err = conn.Persist(key).Result()
+		val, err = conn.Persist(getKey(s.Prefix, key)).Result()
 		return err
 	}, acceptable)
 
@@ -840,7 +861,7 @@ func (s *Redis) Pfadd(key string, values ...interface{}) (val bool, err error) {
 			return err
 		}
 
-		v, err := conn.PFAdd(key, values...).Result()
+		v, err := conn.PFAdd(getKey(s.Prefix, key), values...).Result()
 		if err != nil {
 			return err
 		}
@@ -860,7 +881,7 @@ func (s *Redis) Pfcount(key string) (val int64, err error) {
 			return err
 		}
 
-		val, err = conn.PFCount(key).Result()
+		val, err = conn.PFCount(getKey(s.Prefix, key)).Result()
 		return err
 	}, acceptable)
 
@@ -875,7 +896,10 @@ func (s *Redis) Pfmerge(dest string, keys ...string) error {
 			return err
 		}
 
-		_, err = conn.PFMerge(dest, keys...).Result()
+		for idx, k := range keys {
+			keys[idx] = getKey(s.Prefix, k)
+		}
+		_, err = conn.PFMerge(getKey(s.Prefix, dest), keys...).Result()
 		return err
 	}, acceptable)
 }
@@ -927,7 +951,7 @@ func (s *Redis) Rpop(key string) (val string, err error) {
 			return err
 		}
 
-		val, err = conn.RPop(key).Result()
+		val, err = conn.RPop(getKey(s.Prefix, key)).Result()
 		return err
 	}, acceptable)
 
@@ -942,7 +966,7 @@ func (s *Redis) Rpush(key string, values ...interface{}) (val int, err error) {
 			return err
 		}
 
-		v, err := conn.RPush(key, values...).Result()
+		v, err := conn.RPush(getKey(s.Prefix, key), values...).Result()
 		if err != nil {
 			return err
 		}
@@ -962,7 +986,7 @@ func (s *Redis) Sadd(key string, values ...interface{}) (val int, err error) {
 			return err
 		}
 
-		v, err := conn.SAdd(key, values...).Result()
+		v, err := conn.SAdd(getKey(s.Prefix, key), values...).Result()
 		if err != nil {
 			return err
 		}
@@ -997,7 +1021,7 @@ func (s *Redis) SetBit(key string, offset int64, value int) error {
 			return err
 		}
 
-		_, err = conn.SetBit(key, offset, value).Result()
+		_, err = conn.SetBit(getKey(s.Prefix, key), offset, value).Result()
 		return err
 	}, acceptable)
 }
@@ -1010,7 +1034,7 @@ func (s *Redis) Sscan(key string, cursor uint64, match string, count int64) (key
 			return err
 		}
 
-		keys, cur, err = conn.SScan(key, cursor, match, count).Result()
+		keys, cur, err = conn.SScan(getKey(s.Prefix, key), cursor, match, count).Result()
 		return err
 	}, acceptable)
 
@@ -1025,7 +1049,7 @@ func (s *Redis) Scard(key string) (val int64, err error) {
 			return err
 		}
 
-		val, err = conn.SCard(key).Result()
+		val, err = conn.SCard(getKey(s.Prefix, key)).Result()
 		return err
 	}, acceptable)
 
@@ -1040,7 +1064,7 @@ func (s *Redis) Set(key string, value string) error {
 			return err
 		}
 
-		return conn.Set(key, value, 0).Err()
+		return conn.Set(getKey(s.Prefix, key), value, 0).Err()
 	}, acceptable)
 }
 
@@ -1052,7 +1076,7 @@ func (s *Redis) Setex(key, value string, seconds int) error {
 			return err
 		}
 
-		return conn.Set(key, value, time.Duration(seconds)*time.Second).Err()
+		return conn.Set(getKey(s.Prefix, key), value, time.Duration(seconds)*time.Second).Err()
 	}, acceptable)
 }
 
@@ -1064,7 +1088,7 @@ func (s *Redis) Setnx(key, value string) (val bool, err error) {
 			return err
 		}
 
-		val, err = conn.SetNX(key, value, 0).Result()
+		val, err = conn.SetNX(getKey(s.Prefix, key), value, 0).Result()
 		return err
 	}, acceptable)
 
@@ -1079,7 +1103,7 @@ func (s *Redis) SetnxEx(key, value string, seconds int) (val bool, err error) {
 			return err
 		}
 
-		val, err = conn.SetNX(key, value, time.Duration(seconds)*time.Second).Result()
+		val, err = conn.SetNX(getKey(s.Prefix, key), value, time.Duration(seconds)*time.Second).Result()
 		return err
 	}, acceptable)
 
@@ -1094,7 +1118,7 @@ func (s *Redis) Sismember(key string, value interface{}) (val bool, err error) {
 			return err
 		}
 
-		val, err = conn.SIsMember(key, value).Result()
+		val, err = conn.SIsMember(getKey(s.Prefix, key), value).Result()
 		return err
 	}, acceptable)
 
@@ -1109,7 +1133,7 @@ func (s *Redis) Srem(key string, values ...interface{}) (val int, err error) {
 			return err
 		}
 
-		v, err := conn.SRem(key, values...).Result()
+		v, err := conn.SRem(getKey(s.Prefix, key), values...).Result()
 		if err != nil {
 			return err
 		}
@@ -1129,7 +1153,7 @@ func (s *Redis) Smembers(key string) (val []string, err error) {
 			return err
 		}
 
-		val, err = conn.SMembers(key).Result()
+		val, err = conn.SMembers(getKey(s.Prefix, key)).Result()
 		return err
 	}, acceptable)
 
@@ -1144,7 +1168,7 @@ func (s *Redis) Spop(key string) (val string, err error) {
 			return err
 		}
 
-		val, err = conn.SPop(key).Result()
+		val, err = conn.SPop(getKey(s.Prefix, key)).Result()
 		return err
 	}, acceptable)
 
@@ -1159,7 +1183,7 @@ func (s *Redis) Srandmember(key string, count int) (val []string, err error) {
 			return err
 		}
 
-		val, err = conn.SRandMemberN(key, int64(count)).Result()
+		val, err = conn.SRandMemberN(getKey(s.Prefix, key), int64(count)).Result()
 		return err
 	}, acceptable)
 
@@ -1173,7 +1197,9 @@ func (s *Redis) Sunion(keys ...string) (val []string, err error) {
 		if err != nil {
 			return err
 		}
-
+		for idx, k := range keys {
+			keys[idx] = getKey(s.Prefix, k)
+		}
 		val, err = conn.SUnion(keys...).Result()
 		return err
 	}, acceptable)
@@ -1188,8 +1214,10 @@ func (s *Redis) Sunionstore(destination string, keys ...string) (val int, err er
 		if err != nil {
 			return err
 		}
-
-		v, err := conn.SUnionStore(destination, keys...).Result()
+		for idx, k := range keys {
+			keys[idx] = getKey(s.Prefix, k)
+		}
+		v, err := conn.SUnionStore(getKey(s.Prefix, destination), keys...).Result()
 		if err != nil {
 			return err
 		}
@@ -1208,7 +1236,9 @@ func (s *Redis) Sdiff(keys ...string) (val []string, err error) {
 		if err != nil {
 			return err
 		}
-
+		for idx, k := range keys {
+			keys[idx] = getKey(s.Prefix, k)
+		}
 		val, err = conn.SDiff(keys...).Result()
 		return err
 	}, acceptable)
@@ -1223,8 +1253,10 @@ func (s *Redis) Sdiffstore(destination string, keys ...string) (val int, err err
 		if err != nil {
 			return err
 		}
-
-		v, err := conn.SDiffStore(destination, keys...).Result()
+		for idx, k := range keys {
+			keys[idx] = getKey(s.Prefix, k)
+		}
+		v, err := conn.SDiffStore(getKey(s.Prefix, destination), keys...).Result()
 		if err != nil {
 			return err
 		}
@@ -1244,7 +1276,7 @@ func (s *Redis) Ttl(key string) (val int, err error) {
 			return err
 		}
 
-		duration, err := conn.TTL(key).Result()
+		duration, err := conn.TTL(getKey(s.Prefix, key)).Result()
 		if err != nil {
 			return err
 		}
@@ -1264,7 +1296,7 @@ func (s *Redis) Zadd(key string, score int64, value string) (val bool, err error
 			return err
 		}
 
-		v, err := conn.ZAdd(key, red.Z{
+		v, err := conn.ZAdd(getKey(s.Prefix, key), red.Z{
 			Score:  float64(score),
 			Member: value,
 		}).Result()
@@ -1293,7 +1325,7 @@ func (s *Redis) Zadds(key string, ps ...Pair) (val int64, err error) {
 			zs = append(zs, z)
 		}
 
-		v, err := conn.ZAdd(key, zs...).Result()
+		v, err := conn.ZAdd(getKey(s.Prefix, key), zs...).Result()
 		if err != nil {
 			return err
 		}
@@ -1313,7 +1345,7 @@ func (s *Redis) Zcard(key string) (val int, err error) {
 			return err
 		}
 
-		v, err := conn.ZCard(key).Result()
+		v, err := conn.ZCard(getKey(s.Prefix, key)).Result()
 		if err != nil {
 			return err
 		}
@@ -1333,7 +1365,7 @@ func (s *Redis) Zcount(key string, start, stop int64) (val int, err error) {
 			return err
 		}
 
-		v, err := conn.ZCount(key, strconv.FormatInt(start, 10), strconv.FormatInt(stop, 10)).Result()
+		v, err := conn.ZCount(getKey(s.Prefix, key), strconv.FormatInt(start, 10), strconv.FormatInt(stop, 10)).Result()
 		if err != nil {
 			return err
 		}
@@ -1353,7 +1385,7 @@ func (s *Redis) Zincrby(key string, increment int64, field string) (val int64, e
 			return err
 		}
 
-		v, err := conn.ZIncrBy(key, float64(increment), field).Result()
+		v, err := conn.ZIncrBy(getKey(s.Prefix, key), float64(increment), field).Result()
 		if err != nil {
 			return err
 		}
@@ -1373,7 +1405,7 @@ func (s *Redis) Zscore(key string, value string) (val int64, err error) {
 			return err
 		}
 
-		v, err := conn.ZScore(key, value).Result()
+		v, err := conn.ZScore(getKey(s.Prefix, key), value).Result()
 		if err != nil {
 			return err
 		}
@@ -1393,7 +1425,7 @@ func (s *Redis) Zrank(key, field string) (val int64, err error) {
 			return err
 		}
 
-		val, err = conn.ZRank(key, field).Result()
+		val, err = conn.ZRank(getKey(s.Prefix, key), field).Result()
 		return err
 	}, acceptable)
 
@@ -1408,7 +1440,7 @@ func (s *Redis) Zrem(key string, values ...interface{}) (val int, err error) {
 			return err
 		}
 
-		v, err := conn.ZRem(key, values...).Result()
+		v, err := conn.ZRem(getKey(s.Prefix, key), values...).Result()
 		if err != nil {
 			return err
 		}
@@ -1428,7 +1460,7 @@ func (s *Redis) Zremrangebyscore(key string, start, stop int64) (val int, err er
 			return err
 		}
 
-		v, err := conn.ZRemRangeByScore(key, strconv.FormatInt(start, 10),
+		v, err := conn.ZRemRangeByScore(getKey(s.Prefix, key), strconv.FormatInt(start, 10),
 			strconv.FormatInt(stop, 10)).Result()
 		if err != nil {
 			return err
@@ -1449,7 +1481,7 @@ func (s *Redis) Zremrangebyrank(key string, start, stop int64) (val int, err err
 			return err
 		}
 
-		v, err := conn.ZRemRangeByRank(key, start, stop).Result()
+		v, err := conn.ZRemRangeByRank(getKey(s.Prefix, key), start, stop).Result()
 		if err != nil {
 			return err
 		}
@@ -1469,7 +1501,7 @@ func (s *Redis) Zrange(key string, start, stop int64) (val []string, err error) 
 			return err
 		}
 
-		val, err = conn.ZRange(key, start, stop).Result()
+		val, err = conn.ZRange(getKey(s.Prefix, key), start, stop).Result()
 		return err
 	}, acceptable)
 
@@ -1484,7 +1516,7 @@ func (s *Redis) ZrangeWithScores(key string, start, stop int64) (val []Pair, err
 			return err
 		}
 
-		v, err := conn.ZRangeWithScores(key, start, stop).Result()
+		v, err := conn.ZRangeWithScores(getKey(s.Prefix, key), start, stop).Result()
 		if err != nil {
 			return err
 		}
@@ -1504,7 +1536,7 @@ func (s *Redis) ZRevRangeWithScores(key string, start, stop int64) (val []Pair, 
 			return err
 		}
 
-		v, err := conn.ZRevRangeWithScores(key, start, stop).Result()
+		v, err := conn.ZRevRangeWithScores(getKey(s.Prefix, key), start, stop).Result()
 		if err != nil {
 			return err
 		}
@@ -1524,7 +1556,7 @@ func (s *Redis) ZrangebyscoreWithScores(key string, start, stop int64) (val []Pa
 			return err
 		}
 
-		v, err := conn.ZRangeByScoreWithScores(key, red.ZRangeBy{
+		v, err := conn.ZRangeByScoreWithScores(getKey(s.Prefix, key), red.ZRangeBy{
 			Min: strconv.FormatInt(start, 10),
 			Max: strconv.FormatInt(stop, 10),
 		}).Result()
@@ -1552,7 +1584,7 @@ func (s *Redis) ZrangebyscoreWithScoresAndLimit(key string, start, stop int64, p
 			return err
 		}
 
-		v, err := conn.ZRangeByScoreWithScores(key, red.ZRangeBy{
+		v, err := conn.ZRangeByScoreWithScores(getKey(s.Prefix, key), red.ZRangeBy{
 			Min:    strconv.FormatInt(start, 10),
 			Max:    strconv.FormatInt(stop, 10),
 			Offset: int64(page * size),
@@ -1577,7 +1609,7 @@ func (s *Redis) Zrevrange(key string, start, stop int64) (val []string, err erro
 			return err
 		}
 
-		val, err = conn.ZRevRange(key, start, stop).Result()
+		val, err = conn.ZRevRange(getKey(s.Prefix, key), start, stop).Result()
 		return err
 	}, acceptable)
 
@@ -1592,7 +1624,7 @@ func (s *Redis) ZrevrangebyscoreWithScores(key string, start, stop int64) (val [
 			return err
 		}
 
-		v, err := conn.ZRevRangeByScoreWithScores(key, red.ZRangeBy{
+		v, err := conn.ZRevRangeByScoreWithScores(getKey(s.Prefix, key), red.ZRangeBy{
 			Min: strconv.FormatInt(start, 10),
 			Max: strconv.FormatInt(stop, 10),
 		}).Result()
@@ -1620,7 +1652,7 @@ func (s *Redis) ZrevrangebyscoreWithScoresAndLimit(key string, start, stop int64
 			return err
 		}
 
-		v, err := conn.ZRevRangeByScoreWithScores(key, red.ZRangeBy{
+		v, err := conn.ZRevRangeByScoreWithScores(getKey(s.Prefix, key), red.ZRangeBy{
 			Min:    strconv.FormatInt(start, 10),
 			Max:    strconv.FormatInt(stop, 10),
 			Offset: int64(page * size),
@@ -1645,7 +1677,7 @@ func (s *Redis) Zrevrank(key string, field string) (val int64, err error) {
 			return err
 		}
 
-		val, err = conn.ZRevRank(key, field).Result()
+		val, err = conn.ZRevRank(getKey(s.Prefix, key), field).Result()
 		return err
 	}, acceptable)
 
@@ -1659,8 +1691,10 @@ func (s *Redis) Zunionstore(dest string, store ZStore, keys ...string) (val int6
 		if err != nil {
 			return err
 		}
-
-		val, err = conn.ZUnionStore(dest, store, keys...).Result()
+		for idx, k := range keys {
+			keys[idx] = getKey(s.Prefix, k)
+		}
+		val, err = conn.ZUnionStore(getKey(s.Prefix, dest), store, keys...).Result()
 		return err
 	}, acceptable)
 
