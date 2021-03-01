@@ -2,10 +2,10 @@ package httpx
 
 import (
 	"encoding/json"
+	"github.com/tal-tech/go-zero/core/errorx"
+	"github.com/tal-tech/go-zero/core/logx"
 	"net/http"
 	"sync"
-
-	"github.com/tal-tech/go-zero/core/logx"
 )
 
 var (
@@ -22,30 +22,34 @@ const (
 )
 
 func Error(w http.ResponseWriter, err error) {
-	lock.RLock()
-	handler := errorHandler
-	lock.RUnlock()
-
-	if handler == nil {
-		WriteJson(w, http.StatusOK, map[string]interface{}{
-			ResponseWrapCodeKey:    http.StatusBadRequest,
-			ResponseWrapMessageKey: "error handler is null",
-			ResponseWrapSuccessKey: false,
-		})
-		return
-	}
-
-	code, body := errorHandler(err)
-	e, ok := body.(error)
+	//lock.RLock()
+	//handler := errorHandler
+	//lock.RUnlock()
+	//
+	//if handler == nil {
+	//	WriteJson(w, http.StatusOK, map[string]interface{}{
+	//		ResponseWrapCodeKey:    http.StatusBadRequest,
+	//		ResponseWrapMessageKey: "error handler is null",
+	//		ResponseWrapSuccessKey: false,
+	//	})
+	//	return
+	//}
+	//
+	//code, body := errorHandler(err)
+	e, ok := err.(errorx.Errorable)
+	//e, ok := body.(error)
 	if ok {
 		WriteJson(w, http.StatusOK, map[string]interface{}{
-			ResponseWrapMessageKey: e.Error(),
-			ResponseWrapCodeKey:    code,
+			ResponseWrapMessageKey: e.GetMessage(),
+			ResponseWrapCodeKey:    e.GetCode(),
 			ResponseWrapSuccessKey: false,
 		})
-		//http.Error(w, e.Error(), code)
 	} else {
-		WriteJson(w, code, body)
+		WriteJson(w, http.StatusOK, map[string]interface{}{
+			ResponseWrapMessageKey: err.Error(),
+			ResponseWrapCodeKey:    http.StatusInternalServerError,
+			ResponseWrapSuccessKey: false,
+		})
 	}
 }
 
