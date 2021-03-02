@@ -1,46 +1,66 @@
 package errorx
 
-import "fmt"
+import (
+	"encoding/json"
+)
 
-type Errorable interface {
-	GetCode() int
-	GetMessage() string
+type (
+	Data             map[string]interface{}
+	BasicErrorOption func(*BasicError)
+	BasicError       struct {
+		Code    int
+		Message string
+		Err     error
+		Data    Data
+	}
+)
+
+func (b BasicError) Error() string {
+	bs, err := json.Marshal(b)
+	if err != nil {
+		return ""
+	}
+	return string(bs)
 }
 
-type rpcError struct {
-	Code    int
-	Message string
+func WithCode(code int) BasicErrorOption {
+	return func(err *BasicError) {
+		err.Code = code
+	}
 }
 
-func (r *rpcError) GetCode() int {
-	return r.Code
+func WithError(err error) BasicErrorOption {
+	return func(err *BasicError) {
+		err.Err = err
+	}
 }
 
-func (r *rpcError) GetMessage() string {
-	return r.Message
+func WithData(data Data) BasicErrorOption {
+	return func(err *BasicError) {
+		err.Data = data
+	}
 }
 
-func (r *rpcError) Error() string {
-	return fmt.Sprintf("rpc调用异常，code=%d,message=%s", r.Code, r.Message)
+func WithDataItem(key string, value interface{}) BasicErrorOption {
+	return func(err *BasicError) {
+		if err.Data == nil {
+			err.Data = Data(map[string]interface{}{
+				key: value,
+			})
+		} else {
+			err.Data[key] = value
+		}
+	}
 }
 
-func NewRpcErrorWithMessage(message string) error {
-	return &rpcError{
-		Code:    10091,
+func NewBasicError(message string, options ...BasicErrorOption) BasicError {
+	basic := BasicError{
 		Message: message,
 	}
-}
-
-func NewRpcErrorWithError(error error) error {
-	return &rpcError{
-		Code:    10091,
-		Message: error.Error(),
+	for _, o := range options {
+		o(&basic)
 	}
-}
-
-type BasicError struct {
-	Code    int
-	Message string
+	return basic
 }
 
 func (b *BasicError) GetCode() int {
@@ -51,9 +71,6 @@ func (b *BasicError) GetMessage() string {
 	return b.Message
 }
 
-func NewBasicError(code int, message string) error {
-	return &rpcError{
-		Code:    code,
-		Message: message,
-	}
+func (b *BasicError) GetData() map[string]interface{} {
+	return b.Data
 }
