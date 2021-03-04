@@ -75,35 +75,49 @@ func (r *reply) Error(err error) {
 
 func (r *reply) Fail() {
 	content := make(map[string]interface{}, 0)
-	//如果未定义消息，则尝试从error中获取
-	if "" == r.message {
-		e, ok := r.error.(errorx.BasicError)
-		if ok {
-			//如果未输入状态码，则尝试从error中获取
-			if 0 == r.code {
-				r.code = e.Code
-			}
+	content[ResponseWrapSuccessKey] = false
+
+	//error传入情况下，尝试从error中获取相关值
+	e, ok := r.error.(errorx.BasicError)
+	if ok {
+		//未输入状态码
+		if 0 == r.code && e.Code != 0 {
+			r.code = e.Code
+		}
+		//data数据为空
+		if nil == r.data && e.Data != nil {
+			r.data = e.Data
+		}
+		//消息为空
+		if "" == r.message && e.Message != "" {
 			r.message = e.Message
-		} else {
-			r.message = r.error.Error()
 		}
 	}
-	//默认消息
+
+	//再次检查，使用默认消息兜底
+	//状态码
+	if 0 == r.code {
+		r.code = 5000
+	}
+	content[ResponseWrapCodeKey] = r.code
+	//消息
 	if "" == r.message {
 		r.message = "fail"
 	}
 	content[ResponseWrapMessageKey] = r.message
-	//默认状态码
-	if 0 == r.code {
-		r.code = 50000
+	//data数据
+	if nil == r.data && e.Data != nil {
+		content[ResponseWrapDataKey] = e.Data
 	}
-	content[ResponseWrapCodeKey] = r.code
-	if nil != r.data {
-		content[ResponseWrapDataKey] = r.data
-	}
-	content[ResponseWrapSuccessKey] = false
+	//开发模式
 	if 1 == Model {
-		content[ResponseWrapErrorKey] = r.error
+		if nil != r.error {
+			if ok { //传入error，并且是BasicError类型
+				content[ResponseWrapErrorKey] = e.Err
+			} else { //其他类型error取Error()
+				content[ResponseWrapErrorKey] = r.error.Error()
+			}
+		}
 	}
 	WriteJson(r.writer, http.StatusOK, content)
 	return
@@ -130,9 +144,7 @@ func Error(w http.ResponseWriter, err error) {
 
 //  Deprecated:  use Create() instead
 // Ok writes HTTP 200 OK into w.
-func Ok(w http.ResponseWriter) {
-	w.WriteHeader(http.StatusOK)
-}
+func Ok(w http.ResponseWriter) { w.WriteHeader(http.StatusOK) }
 
 //  Deprecated:  use Create() instead
 // OkJson writes v into w with 200 OK.
