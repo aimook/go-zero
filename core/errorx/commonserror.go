@@ -10,7 +10,7 @@ type (
 	BasicError       struct {
 		Code    int
 		Message string
-		Err     error
+		Err     string
 		Data    Data
 	}
 )
@@ -18,7 +18,7 @@ type (
 func (b BasicError) Error() string {
 	bs, err := json.Marshal(b)
 	if err != nil {
-		return ""
+		return "parsing error to json exception"
 	}
 	return string(bs)
 }
@@ -29,9 +29,9 @@ func WithCode(code int) BasicErrorOption {
 	}
 }
 
-func WithError(err error) BasicErrorOption {
+func WithError(raw error) BasicErrorOption {
 	return func(err *BasicError) {
-		err.Err = err
+		err.Err = raw.Error()
 	}
 }
 
@@ -73,4 +73,8 @@ func (b *BasicError) GetMessage() string {
 
 func (b *BasicError) GetData() map[string]interface{} {
 	return b.Data
+}
+
+func (b *BasicError) GetError() string {
+	return b.Err
 }
