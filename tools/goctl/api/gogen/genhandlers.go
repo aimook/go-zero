@@ -31,7 +31,7 @@ func {{.HandlerName}}() http.HandlerFunc {
 			return
 		}{{end}}
 
-		l := logic.New{{.LogicType}}(r.Context())
+		l := logic.New{{$.LogicContextName}}(r.Context())
 		{{if .HasResp}}resp, {{end}}err := l.{{.Call}}({{if .HasRequest}}req{{end}})
 		if err != nil {
 			httpx.Create(w).Error(err)
@@ -44,19 +44,19 @@ func {{.HandlerName}}() http.HandlerFunc {
 {{- end}}
 `
 
+type handlerInfo struct {
+	LogicContextName string
+	ImportPackages   string
+	HandlerMetas     []handlerMeta
+}
+
 type handlerMeta struct {
 	Summary     string
 	HandlerName string
 	RequestType string
-	LogicType   string
 	Call        string
 	HasResp     bool
 	HasRequest  bool
-}
-
-type handlerInfo struct {
-	ImportPackages string
-	HandlerMetas   []handlerMeta
 }
 
 func genHandler(dir, handlerFileName string, cfg *config.Config, group spec.Group, route []spec.Route) error {
@@ -66,6 +66,10 @@ func genHandler(dir, handlerFileName string, cfg *config.Config, group spec.Grou
 	}
 	handlerMetas := make([]handlerMeta, 0)
 	importPackages := genHandlerImports(group, route, parentPkg)
+
+	//逻辑上下文名称
+	logicContextName := strings.Title(group.GetAnnotation(groupProperty)) + "LogicImpl"
+
 	for _, r := range route {
 		meta := handlerMeta{}
 		//Handler名称
@@ -84,8 +88,6 @@ func genHandler(dir, handlerFileName string, cfg *config.Config, group spec.Grou
 		}
 		//请求类型
 		meta.RequestType = util.Title(r.RequestTypeName())
-		//逻辑类型名称
-		meta.LogicType = strings.Title(getLogicName(r))
 		//调用方法名称
 		meta.Call = strings.Title(strings.TrimSuffix(handler, "Handler"))
 		//是否有返回值
@@ -96,13 +98,14 @@ func genHandler(dir, handlerFileName string, cfg *config.Config, group spec.Grou
 		handlerMetas = append(handlerMetas, meta)
 	}
 
-	return doGenToFile(dir, handlerFileName, cfg, group, route[0], handlerInfo{
-		ImportPackages: importPackages,
-		HandlerMetas:   handlerMetas,
+	return doGenToFile(dir, handlerFileName, group, route[0], handlerInfo{
+		LogicContextName: logicContextName,
+		ImportPackages:   importPackages,
+		HandlerMetas:     handlerMetas,
 	})
 }
 
-func doGenToFile(dir, fileName string, cfg *config.Config, group spec.Group, route spec.Route, handleObj handlerInfo) error {
+func doGenToFile(dir, fileName string, group spec.Group, route spec.Route, handleObj handlerInfo) error {
 	return genFile(fileGenConfig{
 		dir:             dir,
 		subdir:          getHandlerFolderPath(group, route),
@@ -117,7 +120,7 @@ func doGenToFile(dir, fileName string, cfg *config.Config, group spec.Group, rou
 
 func genHandlers(dir string, cfg *config.Config, api *spec.ApiSpec) error {
 	for _, group := range api.Service.Groups {
-		name := fmt.Sprintf("%sHandlers_%s", strings.Title(group.GetAnnotation(groupProperty)),
+		name := fmt.Sprintf("%sHandler_%s", strings.Title(group.GetAnnotation(groupProperty)),
 			time.Now().Format("0102150405"))
 		filename, err := format.FileNamingFormat(cfg.NamingFormat, name)
 		if err != nil {
