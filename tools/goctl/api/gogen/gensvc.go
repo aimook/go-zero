@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	contextFilename = "service_context"
-	contextTemplate = `package svc
+	contextFilename = "app_context"
+	contextTemplate = `package app
 
 import (
 	{{.configImport}}
@@ -22,13 +22,13 @@ import (
 var Context *context
 
 type context struct {
-	Config {{.config}}
+	{{.config}}
 	{{.middleware}}
 }
 
 func InitApplicationContext(c {{.config}}) {
 	Context = &context{
-		Config: c, 
+		AppConfig: c, 
 		{{.middlewareAssignment}}
 	}
 }
@@ -79,7 +79,7 @@ func genServiceContext(dir string, cfg *config.Config, api *spec.ApiSpec) error 
 		builtinTemplate: contextTemplate,
 		data: map[string]string{
 			"configImport":         configImport,
-			"config":               "config.Config",
+			"config":               "config.AppConfig",
 			"middleware":           middlewareStr,
 			"middlewareAssignment": middlewareAssignment,
 		},
