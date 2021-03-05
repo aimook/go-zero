@@ -2,13 +2,14 @@ package gogen
 
 import (
 	"fmt"
+	"github.com/tal-tech/go-zero/tools/goctl/util/format"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/tal-tech/go-zero/tools/goctl/api/spec"
 	"github.com/tal-tech/go-zero/tools/goctl/config"
 	"github.com/tal-tech/go-zero/tools/goctl/util"
-	"github.com/tal-tech/go-zero/tools/goctl/util/format"
 	"github.com/tal-tech/go-zero/tools/goctl/vars"
 )
 
@@ -19,68 +20,93 @@ import (
 
 	{{.ImportPackages}}
 )
+{{range $handler:= .HandlerMetas}}
 
+//{{.HandlerName}} {{.Summary}}
 func {{.HandlerName}}() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		{{if .HasRequest}}var req types.{{.RequestType}}
 		if err := httpx.Parse(r, &req); err != nil {
-			httpx.Error(w, err)
+			httpx.Create(w).Error(err)
 			return
 		}{{end}}
 
 		l := logic.New{{.LogicType}}(r.Context())
 		{{if .HasResp}}resp, {{end}}err := l.{{.Call}}({{if .HasRequest}}req{{end}})
 		if err != nil {
-			httpx.Error(w, err)
+			httpx.Create(w).Error(err)
 		} else {
-			{{if .HasResp}}httpx.OkJson(w, resp){{else}}httpx.Ok(w){{end}}
+			{{if .HasResp}}httpx.Create(w).Data(resp).Success(){{else}}httpx.Create(w).Success(){{end}}
 		}
 	}
 }
+
+{{- end}}
 `
+
+type handlerMeta struct {
+	Summary     string
+	HandlerName string
+	RequestType string
+	LogicType   string
+	Call        string
+	HasResp     bool
+	HasRequest  bool
+}
 
 type handlerInfo struct {
 	ImportPackages string
-	HandlerName    string
-	RequestType    string
-	LogicType      string
-	Call           string
-	HasResp        bool
-	HasRequest     bool
+	HandlerMetas   []handlerMeta
 }
 
-func genHandler(dir string, cfg *config.Config, group spec.Group, route spec.Route) error {
-	handler := getHandlerName(route)
-	if getHandlerFolderPath(group, route) != handlerDir {
-		handler = strings.Title(handler)
-	}
+func genHandler(dir, handlerFileName string, cfg *config.Config, group spec.Group, route []spec.Route) error {
 	parentPkg, err := getParentPackage(dir)
 	if err != nil {
 		return err
 	}
+	handlerMetas := make([]handlerMeta, 0)
+	importPackages := genHandlerImports(group, route, parentPkg)
+	for _, r := range route {
+		meta := handlerMeta{}
+		//Handler名称
+		handler := getHandlerName(r)
+		if getHandlerFolderPath(group, r) != handlerDir {
+			handler = strings.Title(handler)
+		}
+		meta.HandlerName = handler
 
-	return doGenToFile(dir, handler, cfg, group, route, handlerInfo{
-		ImportPackages: genHandlerImports(group, route, parentPkg),
-		HandlerName:    handler,
-		RequestType:    util.Title(route.RequestTypeName()),
-		LogicType:      strings.Title(getLogicName(route)),
-		Call:           strings.Title(strings.TrimSuffix(handler, "Handler")),
-		HasResp:        len(route.ResponseTypeName()) > 0,
-		HasRequest:     len(route.RequestTypeName()) > 0,
+		//Handler注释
+		summary, ok := r.AtDoc.Properties["summary"]
+		if ok {
+			summary = strings.TrimPrefix(summary, "\"")
+			summary = strings.TrimSuffix(summary, "\"")
+			meta.Summary = summary
+		}
+		//请求类型
+		meta.RequestType = util.Title(r.RequestTypeName())
+		//逻辑类型名称
+		meta.LogicType = strings.Title(getLogicName(r))
+		//调用方法名称
+		meta.Call = strings.Title(strings.TrimSuffix(handler, "Handler"))
+		//是否有返回值
+		meta.HasResp = len(r.ResponseTypeName()) > 0
+		//是否有请求参数
+		meta.HasRequest = len(r.RequestTypeName()) > 0
+
+		handlerMetas = append(handlerMetas, meta)
+	}
+
+	return doGenToFile(dir, handlerFileName, cfg, group, route[0], handlerInfo{
+		ImportPackages: importPackages,
+		HandlerMetas:   handlerMetas,
 	})
 }
 
-func doGenToFile(dir, handler string, cfg *config.Config, group spec.Group,
-	route spec.Route, handleObj handlerInfo) error {
-	filename, err := format.FileNamingFormat(cfg.NamingFormat, handler)
-	if err != nil {
-		return err
-	}
-
+func doGenToFile(dir, fileName string, cfg *config.Config, group spec.Group, route spec.Route, handleObj handlerInfo) error {
 	return genFile(fileGenConfig{
 		dir:             dir,
 		subdir:          getHandlerFolderPath(group, route),
-		filename:        filename + ".go",
+		filename:        fileName + ".go",
 		templateName:    "handlerTemplate",
 		category:        category,
 		templateFile:    handlerTemplateFile,
@@ -91,22 +117,35 @@ func doGenToFile(dir, handler string, cfg *config.Config, group spec.Group,
 
 func genHandlers(dir string, cfg *config.Config, api *spec.ApiSpec) error {
 	for _, group := range api.Service.Groups {
-		for _, route := range group.Routes {
-			if err := genHandler(dir, cfg, group, route); err != nil {
-				return err
-			}
+		name := fmt.Sprintf("%sHandlers_%s", strings.Title(group.GetAnnotation(groupProperty)),
+			time.Now().Format("0102150405"))
+		filename, err := format.FileNamingFormat(cfg.NamingFormat, name)
+		if err != nil {
+			return err
+		}
+		//合并生成一个Handler文件
+		if err := genHandler(dir, filename, cfg, group, group.Routes); err != nil {
+			return err
 		}
 	}
-
 	return nil
 }
 
-func genHandlerImports(group spec.Group, route spec.Route, parentPkg string) string {
+func genHandlerImports(group spec.Group, route []spec.Route, parentPkg string) string {
 	var imports []string
+	//导入逻辑层包(每组导入1次即可)
 	imports = append(imports, fmt.Sprintf("\"%s\"",
-		util.JoinPackages(parentPkg, getLogicFolderPath(group, route))))
-	imports = append(imports, fmt.Sprintf("\"%s\"", util.JoinPackages(parentPkg, contextDir)))
-	if len(route.RequestTypeName()) > 0 {
+		util.JoinPackages(parentPkg, getLogicFolderPath(group, route[0]))))
+	//标记是否需要导入type包
+	var isNeedImportRequestTypePkg bool
+	for _, r := range route {
+		//只要有一个handler引用type包，则应导入
+		if len(r.RequestTypeName()) > 0 {
+			isNeedImportRequestTypePkg = true
+			break
+		}
+	}
+	if isNeedImportRequestTypePkg {
 		imports = append(imports, fmt.Sprintf("\"%s\"\n", util.JoinPackages(parentPkg, typesDir)))
 	}
 	imports = append(imports, fmt.Sprintf("\"%s/rest/httpx\"", vars.ProjectOpenSourceURL))
@@ -122,6 +161,7 @@ func getHandlerBaseName(route spec.Route) (string, error) {
 	return handler, nil
 }
 
+//getHandlerFolderPath
 func getHandlerFolderPath(group spec.Group, route spec.Route) string {
 	folder := route.GetAnnotation(groupProperty)
 	if len(folder) == 0 {
