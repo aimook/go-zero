@@ -28,6 +28,11 @@ func NewMysql(datasource DBConfig, opts ...SqlOption) SqlConn {
 	return NewSqlConn(mysqlDriverName, datasource.toString(), opts...)
 }
 
+func NewMysqlWithDSN(datasource string, opts ...SqlOption) SqlConn {
+	opts = append(opts, withMysqlAcceptable())
+	return NewSqlConn(mysqlDriverName, datasource, opts...)
+}
+
 func mysqlAcceptable(err error) bool {
 	if err == nil {
 		return true
