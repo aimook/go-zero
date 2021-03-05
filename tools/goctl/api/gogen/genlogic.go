@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/tal-tech/go-zero/tools/goctl/api/spec"
 	"github.com/tal-tech/go-zero/tools/goctl/config"
@@ -15,87 +16,123 @@ import (
 const logicTemplate = `package logic
 
 import (
-	{{.imports}}
+	{{.ImportPkg}}
 )
 
-type {{.logic}} struct {
+type {{.LogicContextName}} struct {
 	logx.Logger
 	ctx    context.Context
 }
 
-func New{{.logic}}(ctx context.Context) {{.logic}} {
-	return {{.logic}}{
+func New{{.LogicContextName}}(ctx context.Context) {{.LogicContextName}} {
+	return {{.LogicContextName}}{
 		Logger: logx.WithContext(ctx),
 		ctx:    ctx,
 	}
 }
 
-func (l *{{.logic}}) {{.function}}({{.request}}) {{.responseType}} {
+{{ range $method := .LogicMetas}} 
+
+func (l *{{$.LogicContextName}}) {{.Function}}({{.Request}}) {{.ResponseType}} {
 	// todo: add your logic here and delete this line
 
-	{{.returnString}}
+	{{.ReturnString}}
 }
+{{- end}}
 `
 
 func genLogic(dir string, cfg *config.Config, api *spec.ApiSpec) error {
-	for _, g := range api.Service.Groups {
-		for _, r := range g.Routes {
-			err := genLogicByRoute(dir, cfg, g, r)
-			if err != nil {
-				return err
-			}
+	for _, group := range api.Service.Groups {
+		name := fmt.Sprintf("%sLogicImpl_%s", strings.Title(group.GetAnnotation(groupProperty)),
+			time.Now().Format("0102150405"))
+		filename, err := format.FileNamingFormat(cfg.NamingFormat, name)
+		if err != nil {
+			return err
+		}
+		//合并生成一个Logic文件
+		if err := genLogicByRoute(dir, filename, cfg, group, group.Routes); nil != err {
+			return err
 		}
 	}
 	return nil
 }
 
-func genLogicByRoute(dir string, cfg *config.Config, group spec.Group, route spec.Route) error {
-	logic := getLogicName(route)
-	goFile, err := format.FileNamingFormat(cfg.NamingFormat, logic)
-	if err != nil {
-		return err
-	}
+type logicInfo struct {
+	ImportPkg        string
+	LogicContextName string
+	LogicMetas       []logicMeta
+}
 
+type logicMeta struct {
+	LogicMethodName string
+	Function        string
+	Request         string
+	ResponseType    string
+	ReturnString    string
+}
+
+func genLogicByRoute(dir, fileName string, cfg *config.Config, group spec.Group, route []spec.Route) error {
+	//获取父级目录
 	parentPkg, err := getParentPackage(dir)
 	if err != nil {
 		return err
 	}
 
-	imports := genLogicImports(route, parentPkg)
-	var responseString string
-	var returnString string
-	var requestString string
-	if len(route.ResponseTypeName()) > 0 {
-		resp := responseGoTypeName(route, typesPacket)
-		responseString = "(" + resp + ", error)"
-		if strings.HasPrefix(resp, "*") {
-			returnString = fmt.Sprintf("return &%s{}, nil", strings.TrimPrefix(resp, "*"))
+	//获取子目录
+	subPkg := getLogicFolderPath(group, route[0])
+
+	//生成导入文件
+	importPkg := genLogicImports(route, parentPkg)
+
+	//逻辑上下文名称
+	logicContextName := strings.Title(group.GetAnnotation(groupProperty)) + "LogicImpl"
+
+	//逻辑层方法
+	logicMetas := make([]logicMeta, 0)
+	for _, r := range route {
+		//逻辑层方法名称
+		logicMethodName := getLogicName(r)
+
+		var responseString string
+		var returnString string
+		var requestString string
+		if len(r.ResponseTypeName()) > 0 {
+			resp := responseGoTypeName(r, typesPacket)
+			responseString = "(" + resp + ", error)"
+			if strings.HasPrefix(resp, "*") {
+				returnString = fmt.Sprintf("return &%s{}, nil", strings.TrimPrefix(resp, "*"))
+			} else {
+				returnString = fmt.Sprintf("return %s{}, nil", resp)
+			}
 		} else {
-			returnString = fmt.Sprintf("return %s{}, nil", resp)
+			responseString = "error"
+			returnString = "return nil"
 		}
-	} else {
-		responseString = "error"
-		returnString = "return nil"
-	}
-	if len(route.RequestTypeName()) > 0 {
-		requestString = "req " + requestGoTypeName(route, typesPacket)
+		if len(r.RequestTypeName()) > 0 {
+			requestString = "req " + requestGoTypeName(r, typesPacket)
+		}
+
+		logicMetas = append(logicMetas, logicMeta{
+			LogicMethodName: logicMethodName,
+			Function:        strings.Title(strings.TrimSuffix(logicMethodName, "Logic")),
+			ResponseType:    responseString,
+			ReturnString:    returnString,
+			Request:         requestString,
+		})
 	}
 
 	return genFile(fileGenConfig{
 		dir:             dir,
-		subdir:          getLogicFolderPath(group, route),
-		filename:        goFile + ".go",
+		subdir:          subPkg,
+		filename:        fileName + ".go",
 		templateName:    "logicTemplate",
 		category:        category,
 		templateFile:    logicTemplateFile,
 		builtinTemplate: logicTemplate,
-		data: map[string]string{
-			"imports":      imports,
-			"logic":        strings.Title(logic),
-			"function":     strings.Title(strings.TrimSuffix(logic, "Logic")),
-			"responseType": responseString,
-			"returnString": returnString,
-			"request":      requestString,
+		data: logicInfo{
+			LogicContextName: logicContextName,
+			ImportPkg:        importPkg,
+			LogicMetas:       logicMetas,
 		},
 	})
 }
@@ -113,11 +150,17 @@ func getLogicFolderPath(group spec.Group, route spec.Route) string {
 	return path.Join(logicDir, folder)
 }
 
-func genLogicImports(route spec.Route, parentPkg string) string {
+func genLogicImports(route []spec.Route, parentPkg string) string {
 	var imports []string
 	imports = append(imports, `"context"`+"\n")
-	//imports = append(imports, fmt.Sprintf("\"%s\"", ctlutil.JoinPackages(parentPkg, contextDir)))
-	if len(route.ResponseTypeName()) > 0 || len(route.RequestTypeName()) > 0 {
+	var isNeedImportTypePkg bool
+	for _, r := range route {
+		if len(r.ResponseTypeName()) > 0 || len(r.RequestTypeName()) > 0 {
+			isNeedImportTypePkg = true
+			break
+		}
+	}
+	if isNeedImportTypePkg {
 		imports = append(imports, fmt.Sprintf("\"%s\"\n", ctlutil.JoinPackages(parentPkg, typesDir)))
 	}
 	imports = append(imports, fmt.Sprintf("\"%s/core/logx\"", vars.ProjectOpenSourceURL))
