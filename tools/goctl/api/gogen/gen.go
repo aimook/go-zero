@@ -52,16 +52,25 @@ func DoGenProject(apiFile, dir, style string) error {
 	if err != nil {
 		return err
 	}
-
+	// 创建API模块目录
 	logx.Must(util.MkdirIfNotExist(dir))
+	// 生成etc配置文件
 	logx.Must(genEtc(dir, cfg, api))
+	// 生成配置文件
 	logx.Must(genConfig(dir, cfg, api))
+	// 生成入口文件
 	logx.Must(genMain(dir, cfg, api))
+	// 生成应用上下文
 	logx.Must(genServiceContext(dir, cfg, api))
+	// 生成type(模型)
 	logx.Must(genTypes(dir, cfg, api))
+	// 生成路由配置文件
 	logx.Must(genRoutes(dir, cfg, api))
+	// 生成Handler文件
 	logx.Must(genHandlers(dir, cfg, api))
+	// 生成逻辑层代码
 	logx.Must(genLogic(dir, cfg, api))
+	// 生成中间件(如果配置)
 	logx.Must(genMiddleware(dir, cfg, api))
 
 	if err := backupAndSweep(apiFile); err != nil {
