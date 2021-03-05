@@ -26,7 +26,7 @@ type {{.logic}} struct {
 func New{{.logic}}(ctx context.Context) {{.logic}} {
 	return {{.logic}}{
 		Logger: logx.WithContext(ctx),
-		ctx:    ctx
+		ctx:    ctx,
 	}
 }
 
@@ -116,7 +116,7 @@ func getLogicFolderPath(group spec.Group, route spec.Route) string {
 func genLogicImports(route spec.Route, parentPkg string) string {
 	var imports []string
 	imports = append(imports, `"context"`+"\n")
-	imports = append(imports, fmt.Sprintf("\"%s\"", ctlutil.JoinPackages(parentPkg, contextDir)))
+	//imports = append(imports, fmt.Sprintf("\"%s\"", ctlutil.JoinPackages(parentPkg, contextDir)))
 	if len(route.ResponseTypeName()) > 0 || len(route.RequestTypeName()) > 0 {
 		imports = append(imports, fmt.Sprintf("\"%s\"\n", ctlutil.JoinPackages(parentPkg, typesDir)))
 	}

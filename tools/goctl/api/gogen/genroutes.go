@@ -68,7 +68,8 @@ func genRoutes(dir string, cfg *config.Config, api *spec.ApiSpec) error {
 	if err != nil {
 		return err
 	}
-
+	//标记是否需要导入app包(引用次数>0则导入)
+	var importAppContextCount int
 	gt := template.Must(template.New("groupTemplate").Parse(routesAdditionTemplate))
 	for _, g := range groups {
 		var gbuilder strings.Builder
@@ -85,19 +86,22 @@ func genRoutes(dir string, cfg *config.Config, api *spec.ApiSpec) error {
 
 		var jwt string
 		if g.jwtEnabled {
-			jwt = fmt.Sprintf("\n rest.WithJwt(serverCtx.Config.%s.AccessSecret),", g.authName)
+			importAppContextCount += 1
+			jwt = fmt.Sprintf("\n rest.WithJwt(app.Context.%s.AccessSecret),", g.authName)
 		}
 		var signature string
 		if g.signatureEnabled {
-			signature = "\n rest.WithSignature(serverCtx.Config.Signature),"
+			importAppContextCount += 1
+			signature = "\n rest.WithSignature(app.Context.Signature),"
 		}
 
 		var routes string
 		if len(g.middlewares) > 0 {
+			importAppContextCount += 1
 			gbuilder.WriteString("\n}...,")
 			var params = g.middlewares
 			for i := range params {
-				params[i] = "serverCtx." + params[i]
+				params[i] = "app.Context." + params[i]
 			}
 			var middlewareStr = strings.Join(params, ", ")
 			routes = fmt.Sprintf("rest.WithMiddlewares(\n[]rest.Middleware{ %s }, \n %s \n),",
@@ -139,14 +143,15 @@ func genRoutes(dir string, cfg *config.Config, api *spec.ApiSpec) error {
 		templateFile:    "",
 		builtinTemplate: routesTemplate,
 		data: map[string]string{
-			"importPackages":  genRouteImports(parentPkg, api),
+			"importPackages":  genRouteImports(importAppContextCount > 0, parentPkg, api),
 			"routesAdditions": strings.TrimSpace(builder.String()),
 		},
 	})
 }
 
-func genRouteImports(parentPkg string, api *spec.ApiSpec) string {
+func genRouteImports(enableAppContext bool, parentPkg string, api *spec.ApiSpec) string {
 	var importSet = collection.NewSet()
+
 	importSet.AddStr(fmt.Sprintf("\"%s\"", util.JoinPackages(parentPkg, contextDir)))
 	for _, group := range api.Service.Groups {
 		for _, route := range group.Routes {
@@ -174,7 +179,7 @@ func getRoutes(api *spec.ApiSpec) ([]group, error) {
 		var groupedRoutes group
 		for _, r := range g.Routes {
 			handler := getHandlerName(r)
-			handler = handler + "(serverCtx)"
+			handler = handler + "()"
 			folder := r.GetAnnotation(groupProperty)
 			if len(folder) > 0 {
 				handler = toPrefix(folder) + "." + strings.ToUpper(handler[:1]) + handler[1:]
