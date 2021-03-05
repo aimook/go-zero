@@ -277,7 +277,9 @@ func (s *Redis) EvalSha(sha string, keys []string, args ...interface{}) (val int
 		if err != nil {
 			return err
 		}
-
+		for idx, k := range keys {
+			keys[idx] = getKey(s.Prefix, k)
+		}
 		val, err = conn.EvalSha(sha, keys, args...).Result()
 		return err
 	}, acceptable)
@@ -1211,26 +1213,6 @@ func (s *Redis) Srandmember(key string, count int) (val []string, err error) {
 
 		val, err = conn.SRandMemberN(getKey(s.Prefix, key), int64(count)).Result()
 		return err
-	}, acceptable)
-
-	return
-}
-
-// Srem is the implementation of redis srem command.
-func (s *Redis) Srem(key string, values ...interface{}) (val int, err error) {
-	err = s.brk.DoWithAcceptable(func() error {
-		conn, err := getRedis(s)
-		if err != nil {
-			return err
-		}
-
-		v, err := conn.SRem(key, values...).Result()
-		if err != nil {
-			return err
-		}
-
-		val = int(v)
-		return nil
 	}, acceptable)
 
 	return
