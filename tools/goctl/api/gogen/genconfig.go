@@ -16,8 +16,8 @@ const (
 
 import {{.authImport}}
 
-type Config struct {
-	rest.RestConf
+type AppConfig struct {
+	WebConfig   rest.RestConf
 	{{.auth}}
 }
 `
