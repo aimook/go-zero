@@ -25,18 +25,18 @@ var configFile = flag.String("f", "etc/{{.serviceName}}.yaml", "the config file"
 func main() {
 	flag.Parse()
 
-	var c config.Config
+	var c config.AppConfig
 	conf.MustLoad(*configFile, &c)
 
 	//init application context
 	app.InitApplicationContext(c)
 	
-	apiServer := rest.MustNewServer(c.RestConf)
+	apiServer := rest.MustNewServer(c.WebConfig)
 	defer apiServer.Stop()
 
 	handler.RegisterHandlers(apiServer)
 
-	fmt.Printf("Starting api server at %s:%d...\n", c.Host, c.Port)
+	fmt.Printf("Starting api server at %s:%d...\n", c.WebConfig.Host, c.WebConfig.Port)
 	apiServer.Start()
 }
 `
