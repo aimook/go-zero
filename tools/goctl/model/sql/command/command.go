@@ -112,8 +112,9 @@ func fromDataSource(url, pattern, dir string, cfg *config.Config, cache, idea bo
 	}
 
 	logx.Disable()
+
 	databaseSource := strings.TrimSuffix(url, "/"+dsn.DBName) + "/information_schema"
-	db := sqlx.NewMysql(databaseSource)
+	db := sqlx.NewMysqlWithDSN(databaseSource)
 	im := model.NewInformationSchemaModel(db)
 
 	tables, err := im.GetAllTables(dsn.DBName)
